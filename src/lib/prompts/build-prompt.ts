@@ -1,5 +1,11 @@
 import type { GenerationInputs, InputSchema, OutputSchema } from "@/lib/products/schema";
-import { FACTUALITY_RULES, GLOBAL_RULES, WRITING_RULES, outputFormatBlock } from "./shared";
+import {
+  FACTUALITY_RULES,
+  GLOBAL_RULES,
+  WRITING_RULES,
+  inputDensityBlock,
+  outputFormatBlock,
+} from "./shared";
 
 export interface UserProfileContext {
   name?: string | null;

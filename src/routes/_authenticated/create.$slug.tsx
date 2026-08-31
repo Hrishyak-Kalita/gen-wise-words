@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { generateContent, getProduct } from "@/lib/content.functions";
 import { DynamicForm } from "@/components/DynamicForm";
 import { ResultCard } from "@/components/ResultCard";
@@ -39,6 +39,18 @@ function CreatePage() {
     output: Record<string, string>;
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Request isolation: switching products keeps this route component mounted,
+  // so every piece of per-product state must be cleared when the slug changes.
+  // Without this, a previous product's form values / result could leak into the
+  // next generation.
+  useEffect(() => {
+    setLastInputs(null);
+    setResult(null);
+    setErrorMessage(null);
+    mutation.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
 
   const productQuery = useQuery({
     queryKey: ["product", slug],
@@ -93,6 +105,7 @@ function CreatePage() {
         <Card>
           <CardContent className="pt-6">
             <DynamicForm
+              key={slug}
               schema={product.inputSchema}
               submitLabel={SUBMIT_LABELS[slug] ?? "Generate"}
               loading={mutation.isPending}

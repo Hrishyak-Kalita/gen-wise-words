@@ -30,8 +30,14 @@ describe("validateInputs", () => {
     expect(() => validateInputs(schema, { topic: "x", tone: "Sassy" })).toThrowError(AppError);
   });
 
-  it("rejects oversized input", () => {
-    expect(() => validateInputs(schema, { topic: "a".repeat(5000) })).toThrowError(AppError);
+  it("rejects oversized input before the model is called", () => {
+    expect(() => validateInputs(schema, { topic: "a".repeat(5001) })).toThrowError(/too long/i);
+  });
+
+  it("rejects a short text field that is over its limit", () => {
+    expect(() => validateInputs(schema, { topic: "x", audience: "a".repeat(400) })).toThrowError(
+      AppError,
+    );
   });
 
   it("drops unknown fields", () => {

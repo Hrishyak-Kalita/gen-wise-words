@@ -14,6 +14,8 @@ export interface ProductField {
   required?: boolean;
   placeholder?: string;
   options?: string[];
+  /** Optional per-field character limit (overrides the configured defaults). */
+  maxLength?: number;
 }
 
 export interface InputSchema {
@@ -27,7 +29,26 @@ export interface OutputSchema {
 
 export type GenerationInputs = Record<string, string>;
 
-const MAX_FIELD_LENGTH = 4000;
+/**
+ * Configurable V1 input-length limits (characters). Long-document processing is
+ * intentionally out of scope: oversized input is rejected before Gemini is called.
+ */
+export const INPUT_LIMITS = {
+  /** Long-form fields: main topic, message, additional context. */
+  textarea: 5000,
+  /** Short single-line fields: recipient, audience, outcome. */
+  text: 300,
+  /** Select values. */
+  select: 100,
+  /** Cap on the total characters across all fields in one request. */
+  totalRequest: 12000,
+};
+
+export const TOO_LONG_MESSAGE = "Your input is too long. Please shorten it and try again.";
+
+export function fieldLimit(field: ProductField): number {
+  return field.maxLength ?? INPUT_LIMITS[field.type] ?? INPUT_LIMITS.textarea;
+}
 
 export function parseInputSchema(raw: unknown): InputSchema {
   const fields = (raw as InputSchema | null)?.fields;
@@ -71,13 +92,27 @@ export function validateInputs(schema: InputSchema, raw: unknown): GenerationInp
       }
       continue;
     }
-    if (trimmed.length > MAX_FIELD_LENGTH) {
-      throw new AppError("INVALID_INPUT", `Field ${field.name} too long`, `${field.label} is too long.`);
+    const limit = fieldLimit(field);
+    if (trimmed.length > limit) {
+      throw new AppError(
+        "INVALID_INPUT",
+        `Field ${field.name} too long: ${trimmed.length} > ${limit}`,
+        TOO_LONG_MESSAGE,
+      );
     }
     if (field.type === "select" && field.options && !field.options.includes(trimmed)) {
       throw new AppError("INVALID_INPUT", `Invalid option for ${field.name}`, `Please pick a valid ${field.label}.`);
     }
     clean[field.name] = trimmed;
+  }
+
+  const total = Object.values(clean).reduce((sum, value) => sum + value.length, 0);
+  if (total > INPUT_LIMITS.totalRequest) {
+    throw new AppError(
+      "INVALID_INPUT",
+      `Request too long: ${total} > ${INPUT_LIMITS.totalRequest}`,
+      TOO_LONG_MESSAGE,
+    );
   }
 
   return clean;

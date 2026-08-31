@@ -37,6 +37,8 @@ function CreatePage() {
   const [result, setResult] = useState<{
     generationId: string;
     output: Record<string, string>;
+    /** The exact inputs that produced this result — used by Regenerate. */
+    inputs: Record<string, string>;
   } | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -58,10 +60,13 @@ function CreatePage() {
   });
 
   const mutation = useMutation({
+    // Payload is built only from the inputs handed to this call — never from
+    // previous results, previous form state, or any cached value.
     mutationFn: (inputs: Record<string, string>) => generate({ data: { slug, inputs } }),
     onMutate: () => setErrorMessage(null),
     onSuccess: (data) => {
-      if (data) setResult({ generationId: data.generationId, output: data.output });
+      if (data)
+        setResult({ generationId: data.generationId, output: data.output, inputs: data.inputs });
     },
     onError: (error: Error) =>
       setErrorMessage(error.message || "Unable to generate content right now. Please try again."),
@@ -138,7 +143,9 @@ function CreatePage() {
               regenerating={mutation.isPending}
               meta={`v${product.version}`}
               onRegenerate={() => {
-                if (lastInputs) mutation.mutate(lastInputs);
+                // Regenerate deliberately reuses the inputs of THIS generation.
+                const source = result.inputs ?? lastInputs;
+                if (source) mutation.mutate(source);
               }}
             />
           ) : null}

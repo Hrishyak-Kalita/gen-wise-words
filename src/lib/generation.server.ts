@@ -26,8 +26,20 @@ export type Stage =
   | "validate_output"
   | "save";
 
+const IS_DEV = process.env["NODE_ENV"] !== "production";
+
+/**
+ * Structured logging. `requestId` ties every stage of one generation together.
+ * User content (inputs / profile / prompt) is only logged in development.
+ */
 function log(stage: Stage, data: Record<string, unknown>) {
   console.log(JSON.stringify({ scope: "generation", stage, ...data }));
+}
+
+/** Only logged in development — never in production. */
+function logSensitive(stage: Stage, data: Record<string, unknown>) {
+  if (!IS_DEV) return;
+  log(stage, data);
 }
 
 export interface GenerationResult {
@@ -50,6 +62,9 @@ export async function runGeneration(params: {
 }): Promise<GenerationResult> {
   const { supabase, userId, productSlug } = params;
   const startedAt = Date.now();
+  // Every request gets its own id; nothing is shared or cached between requests.
+  const requestId = crypto.randomUUID();
+  log("auth", { requestId, userId, productSlug });
 
   // Rate limit
   const since = new Date(Date.now() - RATE_LIMIT.windowMinutes * 60_000).toISOString();
@@ -59,9 +74,9 @@ export async function runGeneration(params: {
     .eq("user_id", userId)
     .gte("created_at", since);
   if (countError) {
-    log("rate_limit", { userId, error: countError.message });
+    log("rate_limit", { requestId, userId, error: countError.message });
   } else if ((count ?? 0) >= RATE_LIMIT.maxGenerations) {
-    log("rate_limit", { userId, count, blocked: true });
+    log("rate_limit", { requestId, userId, count, blocked: true });
     throw new AppError("RATE_LIMITED", `User ${userId} exceeded ${RATE_LIMIT.maxGenerations}/${RATE_LIMIT.windowMinutes}min`);
   }
 
@@ -74,7 +89,7 @@ export async function runGeneration(params: {
     .maybeSingle();
   if (productError) throw new AppError("INTERNAL_ERROR", `Product load failed: ${productError.message}`);
   if (!product) {
-    log("load_product", { productSlug, found: false });
+    log("load_product", { requestId, productSlug, found: false });
     throw new AppError("PRODUCT_NOT_FOUND", `No active product for slug ${productSlug}`);
   }
 
@@ -93,7 +108,22 @@ export async function runGeneration(params: {
   const outputSchema = parseOutputSchema(version.output_schema);
 
   // Validate inputs
-  const inputs = validateInputs(inputSchema, params.rawInputs);
+  let inputs: Record<string, string>;
+  try {
+    inputs = validateInputs(inputSchema, params.rawInputs);
+  } catch (error) {
+    const appError = error instanceof AppError ? error : new AppError("INVALID_INPUT", String(error));
+    log("validate_input", { requestId, userId, productSlug, valid: false, code: appError.code });
+    throw appError;
+  }
+  log("validate_input", {
+    requestId,
+    productSlug,
+    valid: true,
+    fields: Object.keys(inputs),
+    inputChars: Object.values(inputs).reduce((sum, v) => sum + v.length, 0),
+  });
+  logSensitive("validate_input", { requestId, inputs });
 
   // Load profile (optional context)
   const { data: profile } = await supabase
@@ -109,7 +139,15 @@ export async function runGeneration(params: {
     inputs,
     profile: profile ?? null,
   });
-  log("build_prompt", { userId, productSlug, version: version.version, promptChars: prompt.length });
+  log("build_prompt", {
+    requestId,
+    userId,
+    productSlug,
+    promptVersion: version.version,
+    promptChars: prompt.length,
+    hasProfileContext: Boolean(profile),
+  });
+  logSensitive("build_prompt", { requestId, profile: profile ?? null, prompt });
 
   const provider = createProvider();
 
@@ -122,7 +160,10 @@ export async function runGeneration(params: {
     try {
       const result = await provider.generate({ prompt, outputFields: outputSchema.fields });
       model = result.model;
+      log("ai_request", { requestId, productSlug, attempt, status: "sent", model: provider.model });
       log("ai_response", {
+        requestId,
+        status: "ok",
         userId,
         productSlug,
         attempt,
@@ -130,12 +171,21 @@ export async function runGeneration(params: {
         completionTokens: result.usage?.completionTokens,
       });
       output = validateOutput(outputSchema, parseModelJson(result.text));
+      log("validate_output", { requestId, productSlug, attempt, valid: true });
       break;
     } catch (error) {
       const appError =
         error instanceof AppError ? error : new AppError("AI_PROVIDER_ERROR", String(error));
       lastError = appError;
-      log("ai_request", { userId, productSlug, attempt, code: appError.code, detail: appError.message });
+      log("ai_request", {
+        requestId,
+        userId,
+        productSlug,
+        attempt,
+        status: "failed",
+        code: appError.code,
+        detail: appError.message,
+      });
       const retryable =
         appError.code === "INVALID_AI_RESPONSE" ||
         appError.code === "OUTPUT_VALIDATION_ERROR" ||
@@ -159,7 +209,7 @@ export async function runGeneration(params: {
       model,
       latency_ms: latency,
     });
-    log("save", { userId, productSlug, status: "failed", code: failure.code, latency });
+    log("save", { requestId, userId, productSlug, status: "failed", code: failure.code, latency });
     throw failure;
   }
 
@@ -178,15 +228,16 @@ export async function runGeneration(params: {
     .select("id, created_at")
     .single();
   if (saveError || !saved) {
-    log("save", { userId, productSlug, error: saveError?.message });
+    log("save", { requestId, userId, productSlug, error: saveError?.message });
     throw new AppError("INTERNAL_ERROR", `Failed to save generation: ${saveError?.message}`);
   }
 
   log("save", {
+    requestId,
     generationId: saved.id,
     userId,
     productId: product.id,
-    productVersion: version.version,
+    promptVersion: version.version,
     model,
     status: "success",
     latency,

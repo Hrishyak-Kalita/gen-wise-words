@@ -1,5 +1,11 @@
 import type { GenerationInputs, InputSchema, OutputSchema } from "@/lib/products/schema";
-import { FACTUALITY_RULES, GLOBAL_RULES, WRITING_RULES, outputFormatBlock } from "./shared";
+import {
+  FACTUALITY_RULES,
+  GLOBAL_RULES,
+  WRITING_RULES,
+  inputDensityBlock,
+  outputFormatBlock,
+} from "./shared";
 
 export interface UserProfileContext {
   name?: string | null;
@@ -47,16 +53,25 @@ export function buildInputBlock(schema: InputSchema, inputs: GenerationInputs): 
       return value ? `- ${field.label}: ${value}` : null;
     })
     .filter(Boolean);
-  return `USER INPUT:\n${lines.join("\n")}`;
+  return `USER INPUT (this request only — the complete set of user-supplied facts):\n${lines.join("\n")}`;
 }
 
-/** One prompt builder for every product: global -> product -> profile -> input -> format. */
+function inputChars(inputs: GenerationInputs): number {
+  return Object.values(inputs).reduce((total, value) => total + (value?.length ?? 0), 0);
+}
+
+/**
+ * One prompt builder for every product: global -> product -> profile -> input -> format.
+ * Deterministic: the same request always produces the same prompt, and nothing
+ * outside `args` can enter it.
+ */
 export function buildPrompt(args: BuildPromptArgs): string {
   return [
     GLOBAL_RULES,
     args.productPrompt.trim(),
     FACTUALITY_RULES,
     WRITING_RULES,
+    inputDensityBlock(inputChars(args.inputs)),
     buildProfileBlock(args.profile),
     buildInputBlock(args.inputSchema, args.inputs),
     outputFormatBlock(args.outputSchema.fields),

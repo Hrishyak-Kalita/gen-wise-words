@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { InputSchema } from "@/lib/products/schema";
+import { fieldLimit, TOO_LONG_MESSAGE, type InputSchema } from "@/lib/products/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +42,13 @@ export function DynamicForm({
     );
     if (missing) {
       setError(`${missing.label} is required.`);
+      return;
+    }
+    const tooLong = schema.fields.find(
+      (field) => (values[field.name] ?? "").trim().length > fieldLimit(field),
+    );
+    if (tooLong) {
+      setError(TOO_LONG_MESSAGE);
       return;
     }
     setError(null);

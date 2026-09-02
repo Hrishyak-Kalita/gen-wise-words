@@ -11,9 +11,15 @@ export const Route = createFileRoute("/_authenticated/history")({
   head: () => ({
     meta: [
       { title: "History — Draftwell" },
-      { name: "description", content: "Every draft you've generated, saved in one place." },
+      {
+        name: "description",
+        content: "Your latest generated drafts, saved in one place.",
+      },
       { property: "og:title", content: "History — Draftwell" },
-      { property: "og:description", content: "Every draft you've generated, saved in one place." },
+      {
+        property: "og:description",
+        content: "Your latest generated drafts, saved in one place.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -36,13 +42,18 @@ function HistoryPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">History</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Your last 50 generations.</p>
+
+        <p className="mt-1 text-sm text-muted-foreground">Your latest 20 generations.</p>
       </div>
 
-      {error ? <p className="text-sm text-destructive">Couldn't load your history.</p> : null}
+      {error ? (
+        <p className="text-sm text-destructive">Couldn't load your history. Please refresh.</p>
+      ) : null}
 
+      {/* Loading */}
       {isLoading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
@@ -57,25 +68,37 @@ function HistoryPage() {
         </Card>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
+          {/* List */}
           <div className="space-y-3">
-            {(data ?? []).map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSelected(item)}
-                className="w-full rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-foreground/20"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm font-medium">{item.productName}</span>
-                  <span className="text-xs text-muted-foreground">{formatDate(item.createdAt)}</span>
-                </div>
-                <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                  {item.status === "success" ? item.preview : "Generation failed"}
-                </p>
-              </button>
-            ))}
+            {(data ?? []).map((item) => {
+              const isSelected = selected?.id === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelected(item)}
+                  className={`w-full rounded-xl border bg-card p-4 text-left transition-colors ${
+                    isSelected ? "border-foreground" : "border-border hover:border-foreground/20"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium">{item.productName}</span>
+
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(item.createdAt)}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                    {item.status === "success" ? item.preview : "Generation failed"}
+                  </p>
+                </button>
+              );
+            })}
           </div>
 
+          {/* Selected generation */}
           <div>
             {selected?.output ? (
               <ResultCard output={selected.output} meta={selected.productName} />

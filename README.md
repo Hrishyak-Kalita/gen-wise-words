@@ -59,23 +59,22 @@ Store the Gemini API key as a secure server-side secret/environment variable.
 The primary user flow should be:
 
 Landing Page
-    ↓
+↓
 Sign Up / Login
-    ↓
+↓
 Dashboard
-    ↓
+↓
 Choose Product
-    ↓
+↓
 Fill Simple Input Form
-    ↓
+↓
 Generate
-    ↓
+↓
 Loading State
-    ↓
+↓
 Generated Result
-    ↓
+↓
 Copy / Regenerate
-
 
 Keep this flow extremely simple.
 
@@ -132,9 +131,8 @@ Generate Post
 Output:
 
 {
-  "content": "generated LinkedIn post"
+"content": "generated LinkedIn post"
 }
-
 
 Display the generated post in a clean result card.
 
@@ -187,10 +185,9 @@ Generate Email
 Output:
 
 {
-  "subject": "generated subject",
-  "content": "generated email"
+"subject": "generated subject",
+"content": "generated email"
 }
-
 
 Display:
 
@@ -275,9 +272,8 @@ Make It Professional
 Output:
 
 {
-  "content": "generated professional DM"
+"content": "generated professional DM"
 }
-
 
 Actions:
 
@@ -353,7 +349,6 @@ writing_style
 created_at
 updated_at
 
-
 products
 
 id
@@ -365,7 +360,6 @@ active
 created_at
 updated_at
 
-
 product_versions
 
 id
@@ -376,7 +370,6 @@ input_schema
 output_schema
 active
 created_at
-
 
 generations
 
@@ -390,7 +383,6 @@ status
 model
 created_at
 
-
 Use appropriate PostgreSQL types.
 
 JSON/JSONB can be used for flexible product inputs and outputs.
@@ -400,7 +392,6 @@ Do NOT create separate tables such as:
 linkedin_posts
 cold_emails
 corporate_dms
-
 
 Use the generic generation model.
 
@@ -446,36 +437,33 @@ generateLinkedInPost()
 generateColdEmail()
 generateCorporateDM()
 
-
 Instead create one reusable generation pipeline.
 
 Conceptually:
 
 generateContent(productId, inputs)
 
-
 Pipeline:
 
 Authenticate User
-       ↓
+↓
 Load Product
-       ↓
+↓
 Load Active Product Version
-       ↓
+↓
 Validate Inputs
-       ↓
+↓
 Load User Profile
-       ↓
+↓
 Build Prompt
-       ↓
+↓
 Call AI Provider
-       ↓
+↓
 Validate Structured Output
-       ↓
+↓
 Save Generation
-       ↓
+↓
 Return Result
-
 
 10. PRODUCT CONFIGURATION
 
@@ -484,13 +472,12 @@ Make products configuration-driven wherever practical.
 A product definition should conceptually contain:
 
 {
-  "slug": "linkedin_post",
-  "name": "LinkedIn Post",
-  "description": "Create a professional LinkedIn post.",
-  "category": "linkedin",
-  "active": true
+"slug": "linkedin_post",
+"name": "LinkedIn Post",
+"description": "Create a professional LinkedIn post.",
+"category": "linkedin",
+"active": true
 }
-
 
 Each product should define its input fields/schema.
 
@@ -504,24 +491,18 @@ The architecture should make it easy to add a future product such as:
 
 Instagram Caption
 
-
 or:
 
 Professional Follow-up Email
-
 
 without changing the core generation service.
 
 Ideally adding a new product requires:
 
-Product definition
-+
-Input schema
-+
-Prompt
-+
+Product definition +
+Input schema +
+Prompt +
 Output schema
-
 
 The existing:
 
@@ -556,10 +537,10 @@ Keep prompts in a dedicated and maintainable product/prompt structure.
 Conceptually:
 
 prompts/
-    shared/
-        global_rules
-        writing_rules
-        factuality_rules
+shared/
+global_rules
+writing_rules
+factuality_rules
 
     products/
         linkedin_post/
@@ -573,7 +554,6 @@ prompts/
         corporate_dm/
             prompt
             output_schema
-
 
 Adapt the exact storage mechanism to the Lovable/Supabase implementation.
 
@@ -592,7 +572,6 @@ CURRENT USER INPUT
 QUALITY REQUIREMENTS
 
 OUTPUT FORMAT
-
 
 Use reusable prompt-building logic.
 
@@ -771,13 +750,11 @@ Create a reusable AI provider abstraction.
 Conceptually:
 
 AIProvider
-    generate()
-
+generate()
 
 Implement:
 
 GeminiProvider
-
 
 Only Gemini is required for V1.
 
@@ -794,20 +771,18 @@ Use a Supabase Edge Function for Gemini calls.
 Architecture:
 
 Browser
-   ↓
+↓
 Authenticated request
-   ↓
+↓
 Supabase Edge Function
-   ↓
+↓
 Gemini API
-
 
 Never:
 
 Browser
-   ↓
+↓
 Gemini API
-
 
 Do not put the Gemini key in frontend code.
 
@@ -824,24 +799,21 @@ The backend must validate Gemini's response before returning it to the frontend.
 LinkedIn:
 
 {
-  "content": "string"
+"content": "string"
 }
-
 
 Cold Email:
 
 {
-  "subject": "string",
-  "content": "string"
+"subject": "string",
+"content": "string"
 }
-
 
 Corporate DM:
 
 {
-  "content": "string"
+"content": "string"
 }
-
 
 If Gemini returns invalid JSON or invalid structure:
 
@@ -944,7 +916,6 @@ OUTPUT_VALIDATION_ERROR
 RATE_LIMITED
 INTERNAL_ERROR
 
-
 Users should receive simple messages.
 
 Example:
@@ -980,7 +951,6 @@ status
 created_at
 latency
 
-
 If token usage is available from Gemini, record it where practical.
 
 Do not unnecessarily log sensitive user content.
@@ -996,7 +966,6 @@ Gemini response
 Output validation
 Database save
 
-
 Use structured logging.
 
 29. PROMPT VERSIONING
@@ -1009,11 +978,9 @@ linkedin_post v1.0
 cold_email v1.0
 corporate_dm v1.0
 
-
 When a prompt is improved:
 
 linkedin_post v1.1
-
 
 Do not silently modify historical prompt versions.
 
@@ -1346,15 +1313,14 @@ The application should be fully usable from the Lovable preview.
 The application should be designed around this abstraction:
 
 PRODUCT
-   ↓
+↓
 INPUT SCHEMA
-   ↓
+↓
 PROMPT
-   ↓
+↓
 OUTPUT SCHEMA
-   ↓
+↓
 GENERATION ENGINE
-
 
 The generation engine is shared.
 

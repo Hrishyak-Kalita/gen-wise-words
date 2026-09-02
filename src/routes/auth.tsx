@@ -12,7 +12,10 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — Draftwell" },
-      { name: "description", content: "Sign in or create your Draftwell account to start writing." },
+      {
+        name: "description",
+        content: "Sign in or create your Draftwell account to start writing.",
+      },
       { property: "og:title", content: "Sign in — Draftwell" },
       {
         property: "og:description",
@@ -29,6 +32,7 @@ type Mode = "signin" | "signup" | "reset";
 
 function AuthPage() {
   const navigate = useNavigate();
+
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -37,40 +41,91 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard" });
-    });
+    let mounted = true;
+
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+
+      if (mounted && data.session) {
+        await navigate({ to: "/dashboard" });
+      }
+    };
+
+    void checkSession();
+
+    return () => {
+      mounted = false;
+    };
   }, [navigate]);
 
-  const submit = async (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+
     setError(null);
     setMessage(null);
     setLoading(true);
+
+    const normalizedEmail = email.trim().toLowerCase();
+
     try {
       if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: normalizedEmail,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: window.location.origin,
+          },
         });
-        if (signUpError) throw signUpError;
-        const { data } = await supabase.auth.getSession();
-        if (data.session) navigate({ to: "/dashboard" });
-        else setMessage("Check your email to confirm your account, then sign in.");
-      } else if (mode === "signin") {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) throw signInError;
-        navigate({ to: "/dashboard" });
-      } else {
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin,
-        });
-        if (resetError) throw resetError;
-        setMessage("Password reset email sent.");
+
+        if (signUpError) {
+          throw signUpError;
+        }
+
+        /*
+         * If email confirmation is disabled, Supabase returns a session
+         * immediately. If confirmation is enabled, session is null and
+         * the user needs to confirm their email first.
+         */
+        if (data.session) {
+          await navigate({ to: "/dashboard" });
+          return;
+        }
+
+        setMessage("Account created. Check your email to confirm your account, then sign in.");
+        setMode("signin");
+        setPassword("");
+        return;
       }
+
+      if (mode === "signin") {
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: normalizedEmail,
+          password,
+        });
+
+        if (signInError) {
+          throw signInError;
+        }
+
+        await navigate({ to: "/dashboard" });
+        return;
+      }
+
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+        redirectTo: window.location.origin,
+      });
+
+      if (resetError) {
+        throw resetError;
+      }
+
+      setMessage("Password reset email sent.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to continue. Please try again.");
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError("Unable to continue. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -78,15 +133,33 @@ function AuthPage() {
 
   const google = async () => {
     setError(null);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
+    setMessage(null);
+    setLoading(true);
+
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+
+      if (result.error) {
+        setError("Google sign-in failed. Please try again.");
+        return;
+      }
+
+      if (!result.redirected) {
+        await navigate({ to: "/dashboard" });
+      }
+    } catch {
       setError("Google sign-in failed. Please try again.");
-      return;
+    } finally {
+      setLoading(false);
     }
-    if (result.redirected) return;
-    navigate({ to: "/dashboard" });
+  };
+
+  const switchMode = (nextMode: Mode) => {
+    setMode(nextMode);
+    setError(null);
+    setMessage(null);
   };
 
   return (
@@ -95,6 +168,7 @@ function AuthPage() {
         <Link to="/" className="mb-6 block text-sm text-muted-foreground hover:text-foreground">
           ← Draftwell
         </Link>
+
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">
@@ -105,22 +179,26 @@ function AuthPage() {
                   : "Sign in"}
             </CardTitle>
           </CardHeader>
+
           <CardContent className="space-y-4">
             <form onSubmit={submit} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
+
                 <Input
                   id="email"
                   type="email"
                   required
                   autoComplete="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                 />
               </div>
+
               {mode !== "reset" ? (
                 <div className="space-y-2">
                   <Label htmlFor="password">Password</Label>
+
                   <Input
                     id="password"
                     type="password"
@@ -128,12 +206,13 @@ function AuthPage() {
                     minLength={6}
                     autoComplete={mode === "signup" ? "new-password" : "current-password"}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(event) => setPassword(event.target.value)}
                   />
                 </div>
               ) : null}
 
               {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
               {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
 
               <Button type="submit" className="w-full" disabled={loading}>
@@ -148,24 +227,43 @@ function AuthPage() {
             </form>
 
             {mode !== "reset" ? (
-              <Button variant="outline" className="w-full" onClick={google}>
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => void google()}
+                disabled={loading}
+              >
                 Continue with Google
               </Button>
             ) : null}
 
             <div className="flex flex-col gap-1 pt-1 text-sm text-muted-foreground">
               {mode !== "signup" ? (
-                <button type="button" className="text-left hover:text-foreground" onClick={() => setMode("signup")}>
-                  Don't have an account? Sign up
+                <button
+                  type="button"
+                  className="text-left hover:text-foreground"
+                  onClick={() => switchMode("signup")}
+                >
+                  Don&apos;t have an account? Sign up
                 </button>
               ) : null}
+
               {mode !== "signin" ? (
-                <button type="button" className="text-left hover:text-foreground" onClick={() => setMode("signin")}>
+                <button
+                  type="button"
+                  className="text-left hover:text-foreground"
+                  onClick={() => switchMode("signin")}
+                >
                   Already have an account? Sign in
                 </button>
               ) : null}
+
               {mode !== "reset" ? (
-                <button type="button" className="text-left hover:text-foreground" onClick={() => setMode("reset")}>
+                <button
+                  type="button"
+                  className="text-left hover:text-foreground"
+                  onClick={() => switchMode("reset")}
+                >
                   Forgot your password?
                 </button>
               ) : null}

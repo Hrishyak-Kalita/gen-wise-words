@@ -78,7 +78,11 @@ export function validateInputs(schema: InputSchema, raw: unknown): GenerationInp
     const value = source[field.name];
     if (value === undefined || value === null || value === "") {
       if (field.required) {
-        throw new AppError("INVALID_INPUT", `Missing required field: ${field.name}`, `${field.label} is required.`);
+        throw new AppError(
+          "INVALID_INPUT",
+          `Missing required field: ${field.name}`,
+          `${field.label} is required.`,
+        );
       }
       continue;
     }
@@ -88,7 +92,11 @@ export function validateInputs(schema: InputSchema, raw: unknown): GenerationInp
     const trimmed = value.trim();
     if (trimmed === "") {
       if (field.required) {
-        throw new AppError("INVALID_INPUT", `Empty required field: ${field.name}`, `${field.label} is required.`);
+        throw new AppError(
+          "INVALID_INPUT",
+          `Empty required field: ${field.name}`,
+          `${field.label} is required.`,
+        );
       }
       continue;
     }
@@ -101,7 +109,11 @@ export function validateInputs(schema: InputSchema, raw: unknown): GenerationInp
       );
     }
     if (field.type === "select" && field.options && !field.options.includes(trimmed)) {
-      throw new AppError("INVALID_INPUT", `Invalid option for ${field.name}`, `Please pick a valid ${field.label}.`);
+      throw new AppError(
+        "INVALID_INPUT",
+        `Invalid option for ${field.name}`,
+        `Please pick a valid ${field.label}.`,
+      );
     }
     clean[field.name] = trimmed;
   }

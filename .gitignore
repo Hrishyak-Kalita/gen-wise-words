@@ -32,5 +32,10 @@ dist-ssr
 *.sw?
 
 .env
+.env.local
+.env.*.local
 .env.*
 !.env.example
+# Supabase local temp files
+supabase/.temp/
+.vercel/

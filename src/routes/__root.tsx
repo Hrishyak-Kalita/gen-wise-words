@@ -78,10 +78,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Draftwell — Professional content in seconds" },
-      { name: "description", content: "Turn your ideas into polished LinkedIn posts, cold emails and professional messages." },
+      {
+        name: "description",
+        content:
+          "Turn your ideas into polished LinkedIn posts, cold emails and professional messages.",
+      },
       { name: "author", content: "Draftwell" },
       { property: "og:title", content: "Draftwell" },
-      { property: "og:description", content: "Turn your ideas into polished professional content." },
+      {
+        property: "og:description",
+        content: "Turn your ideas into polished professional content.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
